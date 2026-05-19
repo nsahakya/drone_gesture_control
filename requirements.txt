@@ -1,0 +1,5 @@
+mediapipe==0.10.35
+opencv-python==4.13.0.92
+numpy==2.4.6
+djitellopy==2.5.0
+av==17.0.1
