@@ -96,6 +96,8 @@ class GestureDroneController:
             return RcCommand(0, 0, -s, 0)
         if gesture == Gesture.PINKY:
             return RcCommand(0, 0, 0, -s)
+        if gesture == Gesture.ROCK:
+            return RcCommand(0, 0, 0, s)
 
         # OPEN_PALM / NONE / anything else => hover
         return RcCommand(0, 0, 0, 0)
