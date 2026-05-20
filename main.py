@@ -37,7 +37,7 @@ def _print_tello_help() -> None:
 
 def build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Control a drone with hand gestures (MediaPipe Hands).")
-    p.add_argument("--mode", choices=["mock", "tello"], default="mock", help="Drone backend")
+    p.add_argument("--mode", choices=["mock", "tello", "simulated"], default="mock", help="Drone backend")
     p.add_argument("--camera", type=int, default=0, help="Webcam index")
     p.add_argument("--speed", type=int, default=50, help="RC speed (10..100)")
     p.add_argument("--no-window", action="store_true", help="Disable OpenCV preview window")
@@ -69,13 +69,24 @@ def main() -> int:
         print("       Install with: python -m pip install -r requirements.txt")
         return 1
 
-    if args.mode == "tello":
+    # --- Выбор режима дрона (с поддержкой симуляции) ---
+    visualizer = None
+    if args.mode == "simulated":
+        from gesture_control.drone.simulated import SimulatedDrone
+        from gesture_control.drone.visualizer_3d import DroneVisualizer3D
+        drone = SimulatedDrone()
+        drone.connect()
+        drone.start_physics()
+        visualizer = DroneVisualizer3D(drone)
+        print("[INFO] Запущена 3D симуляция дрона")
+    elif args.mode == "tello":
         drone = TelloDrone(enable_video=False)
-    else:
+    else:  # mock
         drone = MockDrone()
 
     print(f"[INFO] Connecting drone backend: {args.mode}")
     try:
+        # Для simulated connect уже вызван, но повторный вызов безвреден
         drone.connect()
     except Exception as e:
         if args.mode == "tello":
@@ -117,6 +128,10 @@ def main() -> int:
             obs, frame = tracker.process(frame, draw=not args.no_window)
             gesture, cmd = controller.update(obs)
 
+            # Обновляем 3D визуализатор (если запущена симуляция)
+            if visualizer is not None:
+                visualizer.update()
+
             now = time.monotonic()
             if now - last_overlay >= 0.05:
                 last_overlay = now
@@ -149,7 +164,6 @@ def main() -> int:
                 if key == ord("q"):
                     break
             else:
-                # If there is no window, keep loop responsive
                 time.sleep(0.01)
 
     except KeyboardInterrupt:
@@ -161,6 +175,8 @@ def main() -> int:
         if not args.no_window:
             cv2.destroyAllWindows()
         drone.end()
+        if visualizer is not None:
+            visualizer.close()
 
     return 0
 
