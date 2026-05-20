@@ -23,7 +23,6 @@ class DroneBase:
 
     def send_rc_control(self, cmd: RcCommand) -> None:  # pragma: no cover
         raise NotImplementedError
-
     def stop(self) -> None:
         self.send_rc_control(RcCommand(0, 0, 0, 0))
 

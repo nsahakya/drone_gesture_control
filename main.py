@@ -3,13 +3,36 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from pathlib import Path
 
-import cv2
 
-from gesture_control.gesture_drone_controller import GestureDroneController
-from gesture_control.hand_tracker import HandTracker
-from gesture_control.drone.mock import MockDrone
-from gesture_control.drone.tello import TelloDrone
+def _warn_if_not_using_venv() -> None:
+    project_root = Path(__file__).resolve().parent
+    venv_dir = project_root / ".venv"
+    if venv_dir.exists() and venv_dir.is_dir() and str(venv_dir) not in sys.prefix:
+        print("[WARN] You are not using the project venv (.venv).")
+        print("       Recommended:")
+        print("         source .venv/bin/activate")
+        print("         python -m pip install -r requirements.txt")
+
+
+def _print_camera_help(camera_index: int) -> None:
+    print(f"[ERROR] Could not open camera index {camera_index}")
+    print("       Tips:")
+    print("         - Try another index: --camera 1 (or 2, 3...)")
+    print("         - Check devices: ls /dev/video*")
+    print("         - If running in WSL/container/remote session, camera may be unavailable")
+
+
+def _print_tello_help() -> None:
+    print("[ERROR] Tello did not respond to 'command'.")
+    print("       Checklist:")
+    print("         1) Connect your PC to the Tello Wi‑Fi network")
+    print("         2) Disable VPN / proxy that may block local UDP")
+    print("         3) Firewall: allow UDP to 192.168.10.1:8889")
+    print("         4) Make sure only one program is controlling Tello")
+    print("       Quick test:")
+    print("         python -c \"from djitellopy import Tello; t=Tello(); t.connect(); print(t.get_battery())\"")
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -25,7 +48,26 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    _warn_if_not_using_venv()
     args = build_arg_parser().parse_args()
+
+    try:
+        import cv2  # type: ignore
+    except ModuleNotFoundError:
+        print("[ERROR] Missing dependency: opencv (cv2)")
+        print("       Install with: python -m pip install -r requirements.txt")
+        return 1
+
+    try:
+        from gesture_control.gesture_drone_controller import GestureDroneController
+        from gesture_control.hand_tracker import HandTracker
+        from gesture_control.drone.mock import MockDrone
+        from gesture_control.drone.tello import TelloDrone
+    except ModuleNotFoundError as e:
+        missing = getattr(e, "name", None) or "(unknown)"
+        print(f"[ERROR] Missing dependency: {missing}")
+        print("       Install with: python -m pip install -r requirements.txt")
+        return 1
 
     if args.mode == "tello":
         drone = TelloDrone(enable_video=False)
@@ -33,7 +75,13 @@ def main() -> int:
         drone = MockDrone()
 
     print(f"[INFO] Connecting drone backend: {args.mode}")
-    drone.connect()
+    try:
+        drone.connect()
+    except Exception as e:
+        if args.mode == "tello":
+            _print_tello_help()
+        print(f"[DETAILS] {type(e).__name__}: {e}")
+        return 3
 
     tracker = HandTracker()
     controller = GestureDroneController(
@@ -46,7 +94,7 @@ def main() -> int:
 
     cap = cv2.VideoCapture(args.camera)
     if not cap.isOpened():
-        print(f"[ERROR] Could not open camera index {args.camera}")
+        _print_camera_help(args.camera)
         return 2
 
     print("[INFO] Controls:")

@@ -11,7 +11,7 @@
 
 ```bash
 cd /home/narek/Desktop/gesture_control
-source venv/bin/activate
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
